@@ -1,103 +1,226 @@
-import Image from "next/image";
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { Upload, X, AlertCircle, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import ImagePreview from "@/components/image-preview"
+import ResultsDisplay from "@/components/results-display"
+import { Toaster } from "@/components/toast/toaster"
+import { useToast } from "@/components/toast/use-toast"
+
+
+// API endpoint for predictions
+const API_URL = "http://51.20.84.12:8000/predict"
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [file, setFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [results, setResults] = useState<number[] | null>(null)
+  const { toast } = useToast()
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    handleSelectedFile(selectedFile)
+  }
+
+  // Handle drag and drop
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const selectedFile = e.dataTransfer.files?.[0]
+    handleSelectedFile(selectedFile)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+  }
+
+  // Process the selected file
+  const handleSelectedFile = (selectedFile: File | undefined) => {
+    if (!selectedFile) return
+
+    // Check if file is an image
+    if (!selectedFile.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload an image file (JPEG, PNG, etc.)",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Create preview
+    const reader = new FileReader()
+    reader.onload = () => {
+      setPreview(reader.result as string)
+    }
+    reader.readAsDataURL(selectedFile)
+
+    setFile(selectedFile)
+    setResults(null)
+    setError(null)
+  }
+
+  // Clear the selected file
+  const handleClearFile = () => {
+    setFile(null)
+    setPreview(null)
+    setResults(null)
+    setError(null)
+  }
+
+  // Submit the image for prediction
+  const handleSubmit = async () => {
+    if (!file) return
+
+    setLoading(true)
+    setError(null)
+    setResults(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      setResults(data.prediction[0])
+
+      toast({
+        title: "Analysis complete",
+        description: "Your X-ray has been successfully analyzed.",
+      })
+    } catch (err) {
+      console.error("Error submitting image:", err)
+      setError(err instanceof Error ? err.message : "An unknown error occurred")
+
+      toast({
+        title: "Error",
+        description: "Failed to analyze the image. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">COVID-19 X-Ray Analysis</h1>
+          <p className="mt-2 text-lg text-gray-600">Upload a chest X-ray image to check for COVID-19 indicators</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <Tabs defaultValue="upload" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="upload">Upload X-Ray</TabsTrigger>
+            <TabsTrigger value="results" disabled={!results}>
+              Results
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="upload">
+            <Card>
+              <CardHeader>
+                <CardTitle>Upload X-Ray Image</CardTitle>
+                <CardDescription>Drag and drop your chest X-ray image or click to browse</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!file ? (
+                  <div
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-12 text-center cursor-pointer hover:bg-gray-50 transition-colors"
+                    onDrop={handleDrop}
+                    onDragOver={handleDragOver}
+                    onClick={() => document.getElementById("file-upload")?.click()}
+                  >
+                    <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-sm text-gray-600 mb-1">
+                      Drag and drop your X-ray image here, or click to select
+                    </p>
+                    <p className="text-xs text-gray-500">Supports: JPEG, PNG, WEBP</p>
+                    <input
+                      id="file-upload"
+                      type="file"
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="absolute top-2 right-2 bg-white rounded-full"
+                        onClick={handleClearFile}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      <ImagePreview src={preview! || "/placeholder.svg"} alt="X-ray preview" />
+                    </div>
+                    <div className="text-sm text-gray-500">
+                      <p>File: {file.name}</p>
+                      <p>Size: {(file.size / 1024).toFixed(2)} KB</p>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error</AlertTitle>
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+              <CardFooter className="flex justify-between">
+                <Button variant="outline" onClick={handleClearFile} disabled={!file || loading}>
+                  Clear
+                </Button>
+                <Button onClick={handleSubmit} disabled={!file || loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    "Analyze X-Ray"
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="results">
+            {results && <ResultsDisplay results={results} imageSrc={preview!} />}
+          </TabsContent>
+        </Tabs>
+
+        {loading && (
+          <div className="mt-6">
+            <p className="text-sm text-gray-500 mb-2">Analyzing your X-ray...</p>
+            <Progress value={100} className="animate-pulse" />
+          </div>
+        )}
+      </div>
+      <Toaster />
     </div>
-  );
+  )
 }
