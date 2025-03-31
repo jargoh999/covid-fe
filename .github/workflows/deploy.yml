@@ -32,9 +32,16 @@ jobs:
       - name: Build with Next.js 🏗️
         run: |
           npm run build
+          ls -la
+          pwd
+
+      - name: Prepare Artifact
+        run: |
           mkdir -p out
-          cp -r ./out/* ./out/
+          cp -r .next/static out/_next
+          cp -r .next/standalone/* out/
           touch out/.nojekyll
+      
 
       - name: Upload artifact 📡
         uses: actions/upload-pages-artifact@v3
