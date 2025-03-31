@@ -16,7 +16,7 @@ import { useToast } from "@/components/toast/use-toast"
 
 
 // API endpoint for predictions
-const API_URL = "http://51.20.84.12:8000/predict"
+const API_URL = "/predict"
 
 export default function Home() {
   const [file, setFile] = useState<File | null>(null)
